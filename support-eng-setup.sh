@@ -1,22 +1,28 @@
 #!/bin/bash
 #
-# Support Engineer Setup.command
-# Double-click this file in Finder to install and/or update to the latest
-# versions of: Chrome, 1Password, 1Password CLI, Claude, Postman, Slack
+# support-eng-setup.sh
+# Installs and keeps up to date:
+#   Apps:      Chrome, 1Password, 1Password CLI, Claude, Postman, Slack, Notion
+#   Dev tools: Claude Code CLI, ripgrep, poppler, jq, gh, fzf, htop, wget, tree
 #
-# Safe to re-run any time — it installs whatever is missing, upgrades
-# whatever is already there, and adopts apps that were installed some
-# other way (e.g. downloaded directly) so it doubles as an "update my
-# apps" tool.
+# Safe to re-run any time — installs whatever is missing, upgrades whatever
+# is already there, and adopts apps that were installed some other way
+# (e.g. downloaded directly) so it doubles as an "update everything" tool.
+#
+# Usage:
+#   /bin/bash -c "$(curl -fsSL <raw-github-url>)"
 
 set -e
 
-APPS="google-chrome 1password 1password-cli claude postman slack"
+# GUI apps + CLI tools that ship as Homebrew casks
+CASKS="google-chrome 1password 1password-cli claude postman slack notion claude-code"
+
+# Command-line tools that ship as Homebrew formulae
+FORMULAE="ripgrep poppler jq gh fzf htop wget tree"
 
 echo "=== Installing Homebrew (if needed) ==="
 if ! command -v brew &> /dev/null; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    # Add brew to PATH for this session (Apple Silicon default location)
     if [[ -f "/opt/homebrew/bin/brew" ]]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
     fi
@@ -29,23 +35,40 @@ echo "=== Updating Homebrew (refreshing available versions) ==="
 brew update
 
 echo ""
-echo "=== Installing any missing apps (adopting existing installs if found) ==="
+echo "=== Installing apps (adopting existing installs if found) ==="
 # --adopt: if an app is already installed but NOT via Homebrew (e.g. downloaded
-# manually from the vendor's site), brew will take over managing it instead of
-# failing with "there is already an App at ...". This lets future runs of this
-# script upgrade it like any other brew-managed app.
-brew install --cask --adopt $APPS
+# manually from the vendor's site), brew takes over managing it instead of
+# failing with "there is already an App at ...".
+brew install --cask --adopt $CASKS
 
 echo ""
-echo "=== Upgrading any apps that are already installed ==="
-brew upgrade --cask --greedy $APPS
+echo "=== Upgrading apps that are already installed ==="
+# --greedy: some casks (Chrome, 1Password, Slack, etc.) are marked as
+# self-updating and get skipped by a normal upgrade — --greedy forces the check.
+brew upgrade --cask --greedy $CASKS
 
 echo ""
-echo "=== Cleaning up old versions ==="
+echo "=== Installing dev tools ==="
+brew install $FORMULAE
+
+echo ""
+echo "=== Upgrading dev tools ==="
+brew upgrade $FORMULAE
+
+echo ""
+echo "=== Removing unused dependencies ==="
+brew autoremove
+
+echo ""
+echo "=== Cleaning up old versions and cached downloads ==="
 brew cleanup
 
 echo ""
+echo "=== Checking Homebrew health (informational only) ==="
+brew doctor || true
+
+echo ""
 echo "=== Done! ==="
-echo "Chrome, 1Password, 1Password CLI, Claude, Postman, and Slack are all installed and up to date."
+echo "All apps and dev tools (Claude Code CLI, ripgrep, poppler, jq, gh, fzf, htop, wget, tree) are installed and up to date."
 echo ""
 read -p "Press Enter to close this window..."
