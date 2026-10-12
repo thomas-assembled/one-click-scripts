@@ -33,10 +33,22 @@ ASSEMBLED_DIR="$HOME/go/src/github.com/assembledhq/assembled"
 
 # Both the skills repo and the Assembled repo are private, so git needs a
 # GitHub login to clone them.
+# Set once sign-in is skipped or fails, so later steps don't ask again.
+GITHUB_LOGIN_SKIPPED=""
+
 ensure_github_login() {
+    if [[ -n "$GITHUB_LOGIN_SKIPPED" ]]; then
+        echo "GitHub sign-in was skipped earlier in this run."
+        return 1
+    fi
     if ! gh auth status --hostname github.com &> /dev/null; then
-        echo "Sign in to GitHub so the private Assembled repos can be downloaded:"
-        gh auth login --hostname github.com --git-protocol https --web || return 1
+        echo "The Claude skills and the Assembled repo are private, so they need a GitHub account with Assembled access."
+        read -r -p "Press Enter to sign in to GitHub now, or type s and Enter to skip: " answer
+        if [[ "$answer" == [sS]* ]] || ! gh auth login --hostname github.com --git-protocol https --web; then
+            GITHUB_LOGIN_SKIPPED="yes"
+            echo "Not signed in to GitHub. Re-run this script once you have an account with access."
+            return 1
+        fi
     fi
     gh auth setup-git --hostname github.com || return 1
 }
