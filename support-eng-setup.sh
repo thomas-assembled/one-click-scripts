@@ -5,6 +5,7 @@
 #   Apps:      Chrome, 1Password, 1Password CLI, Claude, Postman, Slack, Notion
 #   Dev tools: Claude Code CLI, ripgrep, poppler, jq, gh, fzf, htop, wget, tree
 #   Skills:    the Support Eng Claude skills (assembledhq/support-eng-skills)
+#   Code:      a clone of the Assembled repo (first run only, never updated)
 #
 # Safe to re-run any time — installs whatever is missing, upgrades whatever
 # is already there, and adopts apps that were installed some other way
@@ -26,13 +27,22 @@ SKILLS_REPO="assembledhq/support-eng-skills"
 SKILLS_MARKETPLACE="assembled-support-eng"
 SKILLS_PLUGIN="support-eng@assembled-support-eng"
 
-install_claude_skills() {
-    # The skills repo is private, so git needs a GitHub login to clone it.
+# The Assembled repo, cloned to the path Go tooling expects
+ASSEMBLED_REPO="assembledhq/assembled"
+ASSEMBLED_DIR="$HOME/go/src/github.com/assembledhq/assembled"
+
+# Both the skills repo and the Assembled repo are private, so git needs a
+# GitHub login to clone them.
+ensure_github_login() {
     if ! gh auth status --hostname github.com &> /dev/null; then
-        echo "Sign in to GitHub so Claude Code can download the skills:"
+        echo "Sign in to GitHub so the private Assembled repos can be downloaded:"
         gh auth login --hostname github.com --git-protocol https --web || return 1
     fi
     gh auth setup-git --hostname github.com || return 1
+}
+
+install_claude_skills() {
+    ensure_github_login || return 1
 
     if ! gh repo view "$SKILLS_REPO" &> /dev/null; then
         echo "Your GitHub account can't see $SKILLS_REPO. Ask for access, then re-run this script."
@@ -45,6 +55,33 @@ install_claude_skills() {
     claude plugin marketplace update "$SKILLS_MARKETPLACE" || return 1
     claude plugin install "$SKILLS_PLUGIN" || return 1
     claude plugin update "$SKILLS_PLUGIN" || return 1
+}
+
+clone_assembled_repo() {
+    # An existing folder is left exactly as it is: pulling into someone's
+    # working copy could collide with work in progress.
+    if [[ -e "$ASSEMBLED_DIR" ]]; then
+        echo "Found $ASSEMBLED_DIR, leaving it untouched."
+        return 0
+    fi
+
+    ensure_github_login || return 1
+
+    if ! gh repo view "$ASSEMBLED_REPO" &> /dev/null; then
+        echo "Your GitHub account can't see $ASSEMBLED_REPO. Ask for access, then re-run this script."
+        return 1
+    fi
+
+    echo "Downloading the full repo (about 2.5 GB). This can take several minutes."
+    mkdir -p "$(dirname "$ASSEMBLED_DIR")" || return 1
+    # Clone into a temporary name so an interrupted download never leaves a
+    # half-finished folder that the next run would mistake for a real clone.
+    rm -rf "$ASSEMBLED_DIR.partial"
+    if ! git clone "https://github.com/$ASSEMBLED_REPO.git" "$ASSEMBLED_DIR.partial"; then
+        rm -rf "$ASSEMBLED_DIR.partial"
+        return 1
+    fi
+    mv "$ASSEMBLED_DIR.partial" "$ASSEMBLED_DIR" || return 1
 }
 
 echo "=== Installing Homebrew (if needed) ==="
@@ -103,8 +140,17 @@ echo "=== Checking Homebrew health (informational only) ==="
 brew doctor || true
 
 echo ""
+echo "=== Downloading the Assembled repo (first run only) ==="
+REPO_STATUS="at $ASSEMBLED_DIR"
+if ! clone_assembled_repo; then
+    REPO_STATUS="NOT downloaded (see the message above)"
+    echo "Skipping the Assembled repo. Everything else is set up."
+fi
+
+echo ""
 echo "=== Done! ==="
 echo "All apps and dev tools (Claude Code CLI, ripgrep, poppler, jq, gh, fzf, htop, wget, tree) are installed and up to date."
 echo "Support Eng Claude skills: $SKILLS_STATUS. Restart Claude Code to pick up new or changed skills."
+echo "Assembled repo: $REPO_STATUS."
 echo ""
 read -p "Press Enter to close this window..."
