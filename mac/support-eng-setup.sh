@@ -11,6 +11,8 @@
 # is already there, and adopts apps that were installed some other way
 # (e.g. downloaded directly) so it doubles as an "update everything" tool.
 #
+# Windows version: windows/support-eng-setup.ps1. Keep the two in step.
+#
 # Usage:
 #   /bin/bash -c "$(curl -fsSL <raw-github-url>)"
 
